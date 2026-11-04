@@ -2,36 +2,34 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
+import { getShop } from "@/lib/shops";
+import { printerPeerId } from "@/lib/peer-config.mjs";
 
 export default function Dashboard() {
   const { id } = useParams();
-  const [key, setKey] = useState("");
+  const [shop, setShop] = useState(null);
   const [link, setLink] = useState("");
-  const [jobs, setJobs] = useState([]);
   const [err, setErr] = useState("");
+
   useEffect(() => {
-    setLink(`${location.origin}/p/${id}`);
-    setKey(new URLSearchParams(location.search).get("key") || "");
+    try {
+      const saved = getShop(id);
+      if (!saved) {
+        setErr("This shop is not saved in this browser. Create it again on this device.");
+        return;
+      }
+      setShop(saved);
+      setLink(`${location.origin}/p/${id}?name=${encodeURIComponent(saved.name)}`);
+    } catch (e) { setErr(e.message); }
   }, [id]);
 
-  useEffect(() => {
-    if (!key) return;
-    const load = async () => {
-      const r = await fetch(`/api/jobs?id=${id}&key=${key}&all=1`);
-      const d = await r.json();
-      r.ok ? setJobs(d.jobs) : setErr(d.error);
-    };
-    load();
-    const t = setInterval(load, 5000);
-    return () => clearInterval(t);
-  }, [id, key]);
-
-  if (err) return <h1>{err}</h1>;
+  if (err) return <><h1>{err}</h1><p><a href="/">Create a shop</a></p></>;
+  if (!shop) return <p>Loading…</p>;
 
   return (
     <>
-      <h1>Your shop QR</h1>
-      <p>Print this and stick it on your counter.</p>
+      <h1>{shop.name}: shop QR</h1>
+      <p>Print this and put it on your counter. The printer PC must be online before customers send files.</p>
       <div className="qrbox">
         {link && <QRCodeSVG value={link} size={220} />}
         <p>{link}</p>
@@ -41,19 +39,14 @@ export default function Dashboard() {
         <button className="alt" onClick={() => navigator.clipboard.writeText(link)}>Copy link</button>
       </div>
 
-      <h2>Incoming files</h2>
-      {!jobs.length && <p>Nothing yet. Files show up here when a customer sends one.</p>}
-      {jobs.map((j) => (
-        <div className="job" key={j.id}>
-          <span>{j.name}: {j.copies} {j.copies > 1 ? "copies" : "copy"}, {j.color ? "colour" : "B&W"}{j.duplex ? ", both sides" : ""}{j.pages ? `, ${j.pages} ${j.pages > 1 ? "pages" : "page"}` : ""}</span>
-          <span className={`tag ${j.status}`}>{j.status === "pending" ? "Waiting for printer" : j.status === "printed" ? "Printed" : "Expired"}</span>
-        </div>
-      ))}
-
       <h2>Auto-print agent</h2>
-      <p>Run this on the PC connected to your printer:</p>
-      <p><code>SERVER={link && location.origin} PRINTER_ID={id} KEY={key} node agent.mjs</code></p>
-      <p>Lost this page? Log in again at <a href="/login">/login</a> with your Shop ID <code>{id}</code> and password.</p>
+      <p>On the PC connected to your printer, install the agent dependencies and run it with this shop ID:</p>
+      <pre><code>{`cd C:\\path\\to\\printqr\\agent
+npm install
+$env:SHOP_ID="${id}"
+node .\\agent.mjs`}</code></pre>
+      <p>Then open <code>http://localhost:4317</code> in a browser on that PC and leave the tab open. Printer ID: <code>{printerPeerId(id)}</code></p>
+      <p>Saved shops: <a href="/login">this browser only</a>. There is no password login or cross-device recovery because no shop database is used.</p>
     </>
   );
 }

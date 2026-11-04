@@ -1,31 +1,29 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { getShops } from "@/lib/shops";
 
 export default function Login() {
-  const [id, setId] = useState("");
-  const [password, setPassword] = useState("");
+  const [shops, setShops] = useState([]);
   const [err, setErr] = useState("");
 
-  async function go(e) {
-    e.preventDefault(); setErr("");
-    const r = await fetch("/api/login", { method: "POST", body: JSON.stringify({ id, password }) });
-    const d = await r.json();
-    if (!r.ok) return setErr(d.error);
-    location.href = `/dashboard/${d.id}?key=${d.secret}`;
-  }
+  useEffect(() => {
+    try { setShops(getShops()); }
+    catch (e) { setErr(e.message); }
+  }, []);
 
   return (
     <>
-      <h1>Log in to your shop</h1>
-      <p>Your Shop ID is the code in your QR link (the part after /p/).</p>
-      <form onSubmit={go}>
-        <label htmlFor="i"><strong>Shop ID</strong></label>
-        <div style={{ margin: "8px 0 16px" }}><input id="i" type="text" value={id} onChange={(e) => setId(e.target.value)} required /></div>
-        <label htmlFor="pw"><strong>Password</strong></label>
-        <div style={{ margin: "8px 0 16px" }}><input id="pw" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required style={{ width: "100%", padding: 12, border: "1.5px solid var(--line)", borderRadius: 6, font: "inherit" }} /></div>
-        <div className="row"><button>Log in</button><a href="/">Create a new shop</a></div>
-        {err && <p className="err">{err}</p>}
-      </form>
+      <h1>Saved shops</h1>
+      <p>Shops are saved in this browser only. They are not available after clearing browser data or on another device.</p>
+      {err && <p className="err">{err}</p>}
+      {!shops.length && !err && <p>No saved shops on this browser yet.</p>}
+      {shops.map((shop) => (
+        <div className="job" key={shop.id}>
+          <strong>{shop.name}</strong>
+          <a href={`/dashboard/${shop.id}`}>Open QR</a>
+        </div>
+      ))}
+      <p style={{ marginTop: 20 }}><a href="/">Create a shop</a></p>
     </>
   );
 }
